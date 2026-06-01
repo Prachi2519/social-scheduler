@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { MenuIcon } from "lucide-react";
 import { Outlet, useLocation } from "react-router-dom";
-import Sidebar from "./Sidebar";
+import Sidebar from "../Sidebar";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -17,7 +17,7 @@ export default function Layout() {
 
   return (
     <div className="flex min-h-screen bg-slate-100 text-slate-950">
-      <Sidebar isMobileMenuOpen={isMobileMenuOpen} onCloseMobileMenu={() => setIsMobileMenuOpen(false)} />
+      <Sidebar isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
 
       <div className="flex min-h-screen flex-1 flex-col lg:pl-64">
         <header className="flex h-16 items-center gap-4 border-b border-slate-200 bg-white px-4 sm:px-6 md:px-8">
