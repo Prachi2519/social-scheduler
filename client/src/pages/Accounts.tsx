@@ -37,7 +37,7 @@ export default function Accounts() {
 
         <div className="mt-10 grid gap-5 lg:grid-cols-2">
           {connectedAccounts.map(({ username, platform, icon: Icon, iconText }) => (
-            <div key={platform} className="flex items-center gap-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div key={platform} className="flex items-center gap-5 rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm shadow-slate-200/60 transition hover:-translate-y-0.5 hover:shadow-md">
               <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600 shadow-sm">
                 {Icon ? <Icon className="size-7" /> : <span className="text-2xl font-bold leading-none text-slate-600">{iconText}</span>}
               </div>
@@ -61,6 +61,13 @@ export default function Accounts() {
             </div>
           ))}
         </div>
+
+        {connectedAccounts.length === 0 && (
+          <div className="mt-10 rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center">
+            <p className="text-lg font-semibold text-slate-800">No connected accounts</p>
+            <p className="mt-2 text-sm text-slate-500">Connect a platform to start scheduling posts.</p>
+          </div>
+        )}
       </section>
 
       {isPlatformPickerOpen && <PlatformPickerModal onClose={() => setIsPlatformPickerOpen(false)} />}

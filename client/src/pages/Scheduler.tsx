@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ArrowRightIcon, CalendarDaysIcon, ClockIcon, UploadIcon, XIcon } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarDaysIcon, ClockIcon, UploadIcon, XIcon } from "lucide-react";
 import { SiFacebook, SiInstagram, SiX } from "@icons-pack/react-simple-icons";
 
 const platforms = [
@@ -54,26 +54,29 @@ export default function Scheduler() {
   const [content, setContent] = useState("");
   const [selectedPlatforms, setSelectedPlatforms] = useState(["Twitter / X"]);
   const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaPreviewUrl, setMediaPreviewUrl] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
+  const [isSchedulingPost, setIsSchedulingPost] = useState(false);
 
-  useEffect(() => {
-    if (!mediaFile) {
-      setMediaPreviewUrl("");
-      return;
+  const mediaPreviewUrl = useMemo(() => (mediaFile ? URL.createObjectURL(mediaFile) : ""), [mediaFile]);
+
+  useEffect(() => () => {
+    if (mediaPreviewUrl) {
+      URL.revokeObjectURL(mediaPreviewUrl);
     }
-
-    const objectUrl = URL.createObjectURL(mediaFile);
-    setMediaPreviewUrl(objectUrl);
-
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [mediaFile]);
+  }, [mediaPreviewUrl]);
 
   const togglePlatform = (platform: string) => {
     setSelectedPlatforms((selected) =>
       selected.includes(platform) ? selected.filter((item) => item !== platform) : [...selected, platform],
     );
+  };
+
+  const handleSchedulePost = () => {
+    if (isSchedulingPost) return;
+
+    setIsSchedulingPost(true);
+    window.setTimeout(() => setIsSchedulingPost(false), 2000);
   };
 
   return (
@@ -187,7 +190,7 @@ export default function Scheduler() {
 
             <div>
               <label htmlFor="scheduled-time" className="text-sm font-semibold uppercase text-slate-500">
-                Date
+                Time
               </label>
               <div className="relative mt-3">
                 <ClockIcon className="pointer-events-none absolute left-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
@@ -205,9 +208,10 @@ export default function Scheduler() {
           <button
             type="button"
             className="mt-7 inline-flex h-16 w-full items-center justify-center gap-3 rounded-xl bg-red-500 text-lg font-semibold text-white shadow-sm shadow-red-500/25 transition hover:bg-red-600"
+            onClick={handleSchedulePost}
           >
+            <ClockIcon className={["size-5", isSchedulingPost ? "animate-spin" : ""].join(" ")} />
             Schedule Post
-            <ArrowRightIcon className="size-5" />
           </button>
         </div>
 

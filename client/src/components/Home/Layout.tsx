@@ -16,11 +16,11 @@ export default function Layout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-slate-100 text-slate-950">
+    <div className="flex min-h-screen bg-[#f5f7fb] text-slate-950">
       <Sidebar isOpen={isMobileMenuOpen} setIsOpen={setIsMobileMenuOpen} />
 
       <div className="flex min-h-screen flex-1 flex-col lg:pl-64">
-        <header className="flex h-16 items-center gap-4 border-b border-slate-200 bg-white px-4 sm:px-6 md:px-8">
+        <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur sm:px-6 md:px-8">
           <button
             type="button"
             className="-ml-2 rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 lg:hidden"
