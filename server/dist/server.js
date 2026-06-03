@@ -6,6 +6,8 @@ import authRouter from "./routes/authRoutes.js";
 import socialAuthRoutes from "./routes/socialAuthRoutes.js";
 import accountRouter from "./routes/accountRoutes.js";
 import postRouter from "./routes/postRoutes.js";
+import activityRouter from "./routes/activityRoutes.js";
+import { initScheduler } from "./services/schedulerService.js";
 const app = express();
 //DB connection
 await connectDB();
@@ -20,6 +22,9 @@ app.use("/api/auth", authRouter);
 app.use("/api/oauth", socialAuthRoutes);
 app.use("/api/accounts", accountRouter);
 app.use("/api/posts", postRouter);
+app.use("/api/activity", activityRouter);
+//Initializer Scheduler
+initScheduler();
 //global error handler
 app.use((err, _req, res, _next) => {
     console.error(err);
