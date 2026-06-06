@@ -8,8 +8,9 @@ import { protect } from "../middlewares/authMiddleware.js";
 
 const socialAuthRouter = Router();
 
-socialAuthRouter.get("/:platform", protect, generateAuthUrl);
 socialAuthRouter.get("/accounts/sync", protect, syncAccounts);
 socialAuthRouter.get("/accounts/:userId", protect, getSocialAccounts);
+socialAuthRouter.get("/sync", protect, syncAccounts);
+socialAuthRouter.get("/:platform", protect, generateAuthUrl);
 
 export default socialAuthRouter;

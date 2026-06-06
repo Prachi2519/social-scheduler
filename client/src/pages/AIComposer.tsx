@@ -1,106 +1,95 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRightIcon, CalendarDaysIcon, ClockIcon, HistoryIcon, Loader2Icon, TimerIcon, XIcon } from "lucide-react";
 import { SiFacebook, SiInstagram, SiX } from "@icons-pack/react-simple-icons";
-import img1 from "../assets/img-1.jpg";
-import img2 from "../assets/img-2.jpg";
-import img3 from "../assets/img-3.jpg";
-import img4 from "../assets/img-4.jpg";
+import toast from "react-hot-toast";
+import api from "../api/axios";
 
 const tones = ["Professional", "Creative", "Funny", "Minimalist", "Excited"];
 
 const channels = [
-  { label: "Twitter / X", icon: SiX },
-  { label: "LinkedIn", iconText: "in" },
-  { label: "Facebook", icon: SiFacebook },
-  { label: "Instagram", icon: SiInstagram },
+  { id: "twitter", label: "Twitter / X", icon: SiX },
+  { id: "linkedin", label: "LinkedIn", iconText: "in" },
+  { id: "facebook", label: "Facebook", icon: SiFacebook },
+  { id: "instagram", label: "Instagram", icon: SiInstagram },
 ];
 
-const recentGenerations = [
-  {
-    date: "5/13/2026, 2:34:07 PM",
-    prompt: "create a post for Job Hiring for Data Analyst",
-    content:
-      "Exciting Opportunity: Data Analyst!\n\nAre you a highly analytical professional passionate about transforming complex data into strategic insights? We're looking for a talented and experienced Data Analyst to join our innovative team and drive data-driven decisions.\n\nIn this role, you will leverage your expertise in SQL, Python/R, and cutting-edge data visualization tools to uncover key trends, build insightful reports, and inform critical business strategies.",
-    image: img1,
-  },
-  {
-    date: "5/13/2026, 1:55:53 PM",
-    prompt: 'Post for launching a new "AI Web Development Course"',
-    content: "Announcing the Future of Web Development! We are thrilled to launch our brand new AI Web Development Course, designed to equip you with the cutting-edge skills needed to thrive in the era of artificial intelligence.",
-    image: img2,
-  },
-  {
-    date: "5/12/2026, 6:55:32 PM",
-    prompt: "Write a post about inflation in India in 2026.",
-    content: "As we approach 2026, understanding India's inflation trajectory remains paramount for economic stability and growth. Projections suggest continued influence from global supply chain dynamics, energy costs, and robust domestic demand.",
-    image: img3,
-  },
-  {
-    date: "5/12/2026, 6:47:55 PM",
-    prompt: "Create a post for launching a new shoes with comet design in white",
-    content:
-      "Introducing the 'Astral White' - our revolutionary new footwear that redefines modern elegance. Crafted in pristine white, these sneakers feature an innovative comet-inspired design, symbolizing dynamic movement and groundbreaking style.",
-    image: img4,
-  },
-  {
-    date: "5/12/2026, 6:43:59 PM",
-    prompt: "Create a post for launching a new shoes with comet design",
-    content:
-      "We are thrilled to unveil our latest footwear innovation: The AstraGlide Collection. Inspired by the captivating velocity and radiant trails of comets, this collection merges groundbreaking design with superior craftsmanship. Experience a shoe engineered for dynamic performance and an aesthetic that transcends the ordinary. Elevate your journey and...",
-  },
-  {
-    date: "5/12/2026, 1:01:33 PM",
-    prompt: 'a post for my yt video "How to create a Grocery Delivery MERN Project"',
-    content:
-      "New YouTube Tutorial Alert! Elevate your full-stack development skills with our latest video: \"How to create a Grocery Delivery MERN Project.\" Learn to build a robust, real-world application from scratch using MongoDB, Express.js, React, and Node.js. In this comprehensive guide, you'll gain practical skills in: Database Schema Design RESTful...",
-  },
-  {
-    date: "5/12/2026, 11:55:19 AM",
-    prompt: "create a post for ai course",
-    content:
-      "Unlock your potential in the rapidly evolving world of Artificial Intelligence with practical projects, clear examples, and professional guidance...",
-  },
-  {
-    date: "5/11/2026, 5:56:09 PM",
-    prompt: "A post about greeting follower on social media",
-    content:
-      "A warm welcome to all our new and existing followers. We are delighted to have you join our professional community...",
-  },
-  {
-    date: "5/11/2026, 5:24:05 PM",
-    prompt: "create a post a about AI now a days",
-    content:
-      "Artificial Intelligence is no longer a futuristic concept; it's a transformative force reshaping our world today...",
-  },
-];
+interface Generation {
+  _id: string;
+  createdAt?: string;
+  prompt: string;
+  content: string;
+  mediaUrl?: string;
+  mediaType?: string;
+  tone?: string;
+}
 
-type Generation = (typeof recentGenerations)[number];
+const getErrorMessage = (error: any, fallback: string) => {
+  const message = error?.response?.data?.message || error?.message;
+
+  if (typeof message !== "string") return fallback;
+
+  try {
+    const parsed = JSON.parse(message);
+    return parsed?.error?.message || parsed?.message || fallback;
+  } catch {
+    if (message.includes("503") || message.toLowerCase().includes("high demand")) {
+      return "AI generation is busy right now. Please wait a moment and try again.";
+    }
+
+    return message || fallback;
+  }
+};
 
 export default function AIComposer() {
   const [idea, setIdea] = useState("");
   const [generateImage, setGenerateImage] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedPost, setGeneratedPost] = useState("");
+  const [recentGenerations, setRecentGenerations] = useState<Generation[]>([]);
   const [selectedTone, setSelectedTone] = useState("Professional");
   const [generationToSchedule, setGenerationToSchedule] = useState<Generation | null>(null);
-  const [selectedChannels, setSelectedChannels] = useState(["LinkedIn", "Facebook", "Instagram"]);
+  const [selectedChannels, setSelectedChannels] = useState(["linkedin", "facebook", "instagram"]);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
   const [isSchedulingGeneration, setIsSchedulingGeneration] = useState(false);
 
-  const handleGenerate = () => {
+  const fetchGenerations = async () => {
+    try {
+      const { data } = await api.get("/api/posts/generations");
+      setRecentGenerations(data);
+    } catch (error: any) {
+      toast.error(getErrorMessage(error, "Failed to load generations"));
+    }
+  };
+
+  useEffect(() => {
+    fetchGenerations();
+  }, []);
+
+  const handleGenerate = async () => {
     if (isGenerating) return;
+
+    if (!idea.trim()) {
+      toast.error("Enter an idea first");
+      return;
+    }
 
     setIsGenerating(true);
     setGeneratedPost("");
 
-    window.setTimeout(() => {
-      const subject = idea.trim() || "your next social media campaign";
-      setGeneratedPost(
-        `Here's a ${selectedTone.toLowerCase()} post idea for ${subject}: introduce the story with a strong hook, highlight the value for your audience, and close with a clear call to action.`,
-      );
+    try {
+      const { data } = await api.post("/api/posts/generate", {
+        prompt: idea,
+        tone: selectedTone,
+        generateImage,
+      });
+      setGeneratedPost(data.content);
+      await fetchGenerations();
+    } catch (error: any) {
+      toast.error(getErrorMessage(error, "Failed to generate post"));
+    } finally {
       setIsGenerating(false);
-    }, 1200);
+    }
   };
 
   const toggleChannel = (channel: string) => {
@@ -109,11 +98,48 @@ export default function AIComposer() {
     );
   };
 
-  const handleScheduleGeneration = () => {
+  const handleScheduleGeneration = async () => {
     if (isSchedulingGeneration) return;
 
+    if (!generationToSchedule) return;
+
+    if (selectedChannels.length === 0) {
+      toast.error("Select at least one channel");
+      return;
+    }
+
+    if (!scheduleDate || !scheduleTime) {
+      toast.error("Select date and time");
+      return;
+    }
+
+    if (selectedChannels.includes("instagram") && !generationToSchedule.mediaUrl) {
+      toast.error("Instagram requires an image or video");
+      return;
+    }
+
     setIsSchedulingGeneration(true);
-    window.setTimeout(() => setIsSchedulingGeneration(false), 2000);
+
+    try {
+      await api.post("/api/posts", {
+        content: generationToSchedule.content,
+        platforms: selectedChannels,
+        scheduledFor: new Date(`${scheduleDate}T${scheduleTime}`).toISOString(),
+        status: "scheduled",
+        mediaUrl: generationToSchedule.mediaUrl,
+        mediaType: generationToSchedule.mediaType,
+      });
+
+      toast.success("Post scheduled!");
+      setGenerationToSchedule(null);
+      setScheduleDate("");
+      setScheduleTime("");
+      setSelectedChannels(["linkedin", "facebook", "instagram"]);
+    } catch (error: any) {
+      toast.error(getErrorMessage(error, "Failed to schedule post"));
+    } finally {
+      setIsSchedulingGeneration(false);
+    }
   };
 
   return (
@@ -203,31 +229,40 @@ export default function AIComposer() {
             <HistoryIcon className="size-6 text-slate-500" />
             <h3 className="text-2xl font-semibold text-slate-700">Recent Generations</h3>
           </div>
-          <p className="text-base font-medium text-slate-500">9 total</p>
+          <p className="text-base font-medium text-slate-500">{recentGenerations.length} total</p>
         </div>
 
+        {recentGenerations.length === 0 ? (
+          <div className="mt-7 flex min-h-52 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white px-6 text-center text-sm font-medium text-slate-400">
+            No recent generations yet
+          </div>
+        ) : (
         <div className="mt-7 grid items-stretch gap-8 md:grid-cols-3">
           {recentGenerations.map((generation) => (
             <article
-              key={generation.date}
+              key={generation._id}
               className="flex h-full flex-col rounded-2xl border border-transparent bg-white p-6 text-left shadow-sm shadow-slate-200/40 transition hover:-translate-y-0.5 hover:border-red-200 hover:shadow-md"
             >
               <div className="flex items-center justify-between gap-4">
-                <span className="truncate text-sm font-medium text-slate-400">{generation.date}</span>
-                <span className="rounded-md bg-rose-50 px-2.5 py-1 text-sm font-semibold text-rose-500">Professional</span>
+                <span className="truncate text-sm font-medium text-slate-400">
+                  {generation.createdAt ? new Date(generation.createdAt).toLocaleString() : ""}
+                </span>
+                <span className="rounded-md bg-rose-50 px-2.5 py-1 text-sm font-semibold text-rose-500">
+                  {generation.tone || "Professional"}
+                </span>
               </div>
 
               <p className="mt-6 line-clamp-4 min-h-28 text-base font-medium leading-7 text-slate-600">{generation.content}</p>
 
-              {generation.image && (
+              {generation.mediaUrl && (
                 <img
-                  src={generation.image}
+                  src={generation.mediaUrl}
                   alt=""
                   className="mt-6 aspect-[16/9] w-full rounded-xl object-cover"
                 />
               )}
 
-              {!generation.image && (
+              {!generation.mediaUrl && (
                 <div className="mt-6 flex aspect-[16/9] w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-5 text-center text-sm font-medium text-slate-400">
                   Text-only generation
                 </div>
@@ -243,6 +278,7 @@ export default function AIComposer() {
             </article>
           ))}
         </div>
+        )}
       </div>
 
       {generationToSchedule && (
@@ -261,13 +297,13 @@ export default function AIComposer() {
             </div>
 
             <div className="overflow-y-auto px-7 py-8">
-              {generationToSchedule.image && (
+              {generationToSchedule.mediaUrl && (
                 <div className="rounded-2xl bg-slate-50 p-4">
-                  <img src={generationToSchedule.image} alt="" className="aspect-[16/9] w-full rounded-xl object-cover" />
+                  <img src={generationToSchedule.mediaUrl} alt="" className="aspect-[16/9] w-full rounded-xl object-cover" />
                 </div>
               )}
 
-              <div className={generationToSchedule.image ? "mt-5 rounded-2xl bg-slate-50 px-7 py-8 text-base font-medium text-slate-800" : "rounded-2xl bg-slate-50 px-7 py-8 text-base font-medium text-slate-800"}>
+              <div className={generationToSchedule.mediaUrl ? "mt-5 rounded-2xl bg-slate-50 px-7 py-8 text-base font-medium text-slate-800" : "rounded-2xl bg-slate-50 px-7 py-8 text-base font-medium text-slate-800"}>
                 {generationToSchedule.prompt}
               </div>
 
@@ -275,7 +311,7 @@ export default function AIComposer() {
                 {generationToSchedule.content}
               </div>
 
-              {!generationToSchedule.image && (
+              {!generationToSchedule.mediaUrl && (
                 <div className="mt-5 flex h-28 items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-medium text-slate-400">
                   No media attached
                 </div>
@@ -284,12 +320,12 @@ export default function AIComposer() {
               <div className="mt-9">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Select Channels</p>
                 <div className="mt-4 flex flex-wrap gap-3">
-                  {channels.map(({ label, icon: Icon, iconText }) => {
-                    const isSelected = selectedChannels.includes(label);
+                  {channels.map(({ id, label, icon: Icon, iconText }) => {
+                    const isSelected = selectedChannels.includes(id);
 
                     return (
                       <button
-                        key={label}
+                        key={id}
                         type="button"
                         className={[
                           "flex size-12 items-center justify-center rounded-lg border transition",
@@ -297,7 +333,7 @@ export default function AIComposer() {
                             ? "border-red-500 bg-red-500 text-white"
                             : "border-slate-200 bg-white text-slate-400 hover:bg-slate-50",
                         ].join(" ")}
-                        onClick={() => toggleChannel(label)}
+                        onClick={() => toggleChannel(id)}
                         aria-label={label}
                       >
                         {Icon ? <Icon className="size-6" /> : <span className="text-xl font-bold leading-none">{iconText}</span>}

@@ -3,6 +3,46 @@ import axios from "axios";
 import { Generation } from "../models/Generation.js";
 import { cloudinary } from "../config/cloudinary.js";
 import { Post } from "../models/Post.js";
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isTemporaryAiError = (error) => {
+    const details = [
+        error?.status,
+        error?.code,
+        error?.message,
+        error?.response?.data,
+        error?.error,
+    ]
+        .map((item) => {
+        if (!item)
+            return "";
+        return typeof item === "string" ? item : JSON.stringify(item);
+    })
+        .join(" ")
+        .toLowerCase();
+    return (details.includes("503") ||
+        details.includes("unavailable") ||
+        details.includes("high demand") ||
+        details.includes("try again later"));
+};
+const generateContentWithRetry = async (ai, contents) => {
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            return await ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents,
+            });
+        }
+        catch (error) {
+            lastError = error;
+            if (!isTemporaryAiError(error) || attempt === 2) {
+                throw error;
+            }
+            await wait(1500 * (attempt + 1));
+        }
+    }
+    throw lastError;
+};
 // Helper to poll Leonardo.ai
 const pollLeonardoJob = async (generationId, apiKey) => {
     const maxRetries = 20;
@@ -47,15 +87,24 @@ export const generatePost = async (req, res) => {
             return;
         }
         const ai = new GoogleGenAI({ apiKey });
-        // Generate Text
-        const textResponse = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: `Generate a social media post based on this prompt: "${prompt}".
+        const aiPrompt = `Generate a social media post based on this prompt: "${prompt}".
 Tone: ${tone}.
 Include relevant hashtags.
 Format the response as JSON with "content" and "imagePrompt" fields.
-The "imagePrompt" should be a highly descriptive prompt for an image generator that complements the post.`,
-        });
+The "imagePrompt" should be a highly descriptive prompt for an image generator that complements the post.`;
+        let textResponse;
+        try {
+            textResponse = await generateContentWithRetry(ai, aiPrompt);
+        }
+        catch (error) {
+            if (isTemporaryAiError(error)) {
+                res.status(503).json({
+                    message: "AI generation is busy right now. Please wait a moment and try again.",
+                });
+                return;
+            }
+            throw error;
+        }
         let content = "";
         let imagePrompt = prompt;
         try {

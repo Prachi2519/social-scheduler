@@ -12,6 +12,55 @@ type PostRequest = AuthRequest & {
   };
 };
 
+const wait = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const isTemporaryAiError = (error: any) => {
+  const details = [
+    error?.status,
+    error?.code,
+    error?.message,
+    error?.response?.data,
+    error?.error,
+  ]
+    .map((item) => {
+      if (!item) return "";
+      return typeof item === "string" ? item : JSON.stringify(item);
+    })
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    details.includes("503") ||
+    details.includes("unavailable") ||
+    details.includes("high demand") ||
+    details.includes("try again later")
+  );
+};
+
+const generateContentWithRetry = async (ai: any, contents: string) => {
+  let lastError: any;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents,
+      });
+    } catch (error: any) {
+      lastError = error;
+
+      if (!isTemporaryAiError(error) || attempt === 2) {
+        throw error;
+      }
+
+      await wait(1500 * (attempt + 1));
+    }
+  }
+
+  throw lastError;
+};
+
 // Helper to poll Leonardo.ai
 const pollLeonardoJob = async (
   generationId: string,
@@ -79,15 +128,27 @@ export const generatePost = async (
 
     const ai = new GoogleGenAI({ apiKey });
 
-    // Generate Text
-    const textResponse = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `Generate a social media post based on this prompt: "${prompt}".
+    const aiPrompt = `Generate a social media post based on this prompt: "${prompt}".
 Tone: ${tone}.
 Include relevant hashtags.
 Format the response as JSON with "content" and "imagePrompt" fields.
-The "imagePrompt" should be a highly descriptive prompt for an image generator that complements the post.`,
-    });
+The "imagePrompt" should be a highly descriptive prompt for an image generator that complements the post.`;
+
+    let textResponse;
+
+    try {
+      textResponse = await generateContentWithRetry(ai, aiPrompt);
+    } catch (error: any) {
+      if (isTemporaryAiError(error)) {
+        res.status(503).json({
+          message:
+            "AI generation is busy right now. Please wait a moment and try again.",
+        });
+        return;
+      }
+
+      throw error;
+    }
 
     let content = "";
     let imagePrompt = prompt;
