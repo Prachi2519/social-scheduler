@@ -1,4 +1,9 @@
-import { BadgeCheckIcon, ExternalLinkIcon, XIcon } from "lucide-react";
+import {
+  BadgeCheckIcon,
+  ExternalLinkIcon,
+  Loader2Icon,
+  XIcon,
+} from "lucide-react";
 import { SiFacebook, SiInstagram, SiX } from "@icons-pack/react-simple-icons";
 
 type PlatformPickerModalProps = {
@@ -12,25 +17,25 @@ const platforms = [
   {
     id: "twitter",
     name: "Twitter / X",
-    description: "Post tweets, threads, and media",
+    description: "Tweets, threads, and media",
     icon: SiX,
   },
   {
     id: "linkedin",
     name: "LinkedIn",
-    description: "Connect your LinkedIn account",
+    description: "Profiles and company pages",
     iconText: "in",
   },
   {
     id: "facebook",
     name: "Facebook",
-    description: "Manage your pages and profile",
+    description: "Pages and profile publishing",
     icon: SiFacebook,
   },
   {
     id: "instagram",
     name: "Instagram",
-    description: "Connect your Instagram account",
+    description: "Photos, reels, and stories",
     icon: SiInstagram,
   },
 ];
@@ -42,13 +47,20 @@ export default function PlatformPickerModal({
   onConnect,
 }: PlatformPickerModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/35 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl shadow-slate-900/20">
-        <div className="flex items-center justify-between border-b border-slate-100 px-7 py-5">
-          <h2 className="text-lg font-semibold text-slate-900">Choose a Platform</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/35 p-4 backdrop-blur-sm">
+      <div className="panel-solid w-full max-w-xl overflow-hidden rounded-lg shadow-[0_24px_80px_rgba(23,21,19,0.24)]">
+        <div className="flex items-center justify-between border-b border-stone-200 px-5 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase text-stone-400">
+              New channel
+            </p>
+            <h2 className="text-xl font-semibold text-stone-950">
+              Choose a platform
+            </h2>
+          </div>
           <button
             type="button"
-            className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+            className="focus-ring rounded-lg p-2 text-stone-400 transition hover:bg-stone-950/5 hover:text-stone-700"
             onClick={onClose}
             aria-label="Close platform picker"
           >
@@ -56,7 +68,7 @@ export default function PlatformPickerModal({
           </button>
         </div>
 
-        <div className="space-y-3 px-7 py-6">
+        <div className="grid gap-3 p-5">
           {platforms.map(({ id, name, description, icon: Icon, iconText }) => {
             const connected = connectedIds.includes(id);
             const isConnecting = connecting === id;
@@ -67,28 +79,43 @@ export default function PlatformPickerModal({
                 type="button"
                 disabled={connected || isConnecting}
                 onClick={() => onConnect?.(id)}
-                className="grid w-full grid-cols-[2.5rem_1fr_2rem] items-center gap-5 rounded-xl px-3 py-4 text-left transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-75"
+                className="focus-ring grid w-full grid-cols-[2.75rem_1fr_auto] items-center gap-4 rounded-lg border border-stone-200 bg-white/75 px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-stone-300 hover:bg-white disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                <div className="flex size-10 items-center justify-center text-slate-500">
-                  {Icon ? <Icon className="size-7" /> : <span className="text-2xl font-bold leading-none text-slate-600">{iconText}</span>}
+                <div
+                  className={[
+                    "flex size-11 items-center justify-center rounded-lg",
+                    connected
+                      ? "bg-[#e9f8f2] text-[var(--mint)]"
+                      : "bg-stone-950/[0.04] text-stone-700",
+                  ].join(" ")}
+                >
+                  {Icon ? (
+                    <Icon className="size-6" />
+                  ) : (
+                    <span className="text-xl font-bold leading-none">
+                      {iconText}
+                    </span>
+                  )}
                 </div>
 
-                <div className="text-center">
-                  <p className={connected ? "font-semibold text-rose-500" : "font-semibold text-slate-800"}>{name}</p>
-                  <p className="mt-1 text-sm font-medium text-slate-500">
+                <div className="min-w-0">
+                  <p className="font-semibold text-stone-900">{name}</p>
+                  <p className="mt-1 text-sm font-medium text-stone-500">
                     {connected
                       ? "Already connected"
                       : isConnecting
-                        ? "Connecting..."
+                        ? "Opening authorization"
                         : description}
                   </p>
                 </div>
 
                 <div className="flex justify-end">
                   {connected ? (
-                    <BadgeCheckIcon className="size-5 text-rose-400" />
+                    <BadgeCheckIcon className="size-5 text-[var(--mint)]" />
+                  ) : isConnecting ? (
+                    <Loader2Icon className="size-5 animate-spin text-stone-400" />
                   ) : (
-                    <ExternalLinkIcon className="size-5 text-slate-300" />
+                    <ExternalLinkIcon className="size-5 text-stone-300" />
                   )}
                 </div>
               </button>

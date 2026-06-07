@@ -1,7 +1,9 @@
 import { Response } from "express";
 import { AuthRequest } from "../middlewares/authMiddleware.js";
-import { GoogleGenAI } from "@google/genai";
-import axios from "axios";
+import {
+  InferenceClient,
+  type InferenceProviderOrPolicy,
+} from "@huggingface/inference";
 import { Generation } from "../models/Generation.js";
 import { cloudinary } from "../config/cloudinary.js";
 import { Post } from "../models/Post.js";
@@ -12,99 +14,291 @@ type PostRequest = AuthRequest & {
   };
 };
 
-const wait = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
+const getErrorMessage = (error: any) => {
+  const message =
+    error?.response?.data?.error?.message ||
+    error?.response?.data?.message ||
+    error?.message;
 
-const isTemporaryAiError = (error: any) => {
-  const details = [
-    error?.status,
-    error?.code,
-    error?.message,
-    error?.response?.data,
-    error?.error,
-  ]
-    .map((item) => {
-      if (!item) return "";
-      return typeof item === "string" ? item : JSON.stringify(item);
-    })
-    .join(" ")
-    .toLowerCase();
-
-  return (
-    details.includes("503") ||
-    details.includes("unavailable") ||
-    details.includes("high demand") ||
-    details.includes("try again later")
-  );
-};
-
-const generateContentWithRetry = async (ai: any, contents: string) => {
-  let lastError: any;
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      return await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents,
-      });
-    } catch (error: any) {
-      lastError = error;
-
-      if (!isTemporaryAiError(error) || attempt === 2) {
-        throw error;
-      }
-
-      await wait(1500 * (attempt + 1));
-    }
+  if (typeof message === "string" && message.trim()) {
+    return message;
   }
 
-  throw lastError;
+  return "Unknown error";
 };
 
-// Helper to poll Leonardo.ai
-const pollLeonardoJob = async (
-  generationId: string,
-  apiKey: string,
-): Promise<string> => {
-  const maxRetries = 20;
-  const delay = 5000;
+const getMissingEnvNames = (names: string[]) =>
+  names.filter((name) => !process.env[name]?.trim());
 
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const response = await axios.get(
-        `https://cloud.leonardo.ai/api/rest/v1/generations/${generationId}`,
-        {
-          headers: {
-            accept: "application/json",
-            authorization: `Bearer ${apiKey}`,
-          },
-        },
-      );
+const hasCloudinaryConfig = () =>
+  getMissingEnvNames([
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+  ]).length === 0;
 
-      const generation = response.data.generations_by_pk;
+const assertCloudinaryConfig = () => {
+  const missing = getMissingEnvNames([
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET",
+  ]);
 
-      if (generation.status === "COMPLETE") {
-        if (
-          generation.generated_images &&
-          generation.generated_images.length > 0
-        ) {
-          return generation.generated_images[0].url;
+  if (missing.length > 0) {
+    throw new Error(
+      `Cloudinary is not configured. Missing: ${missing.join(", ")}.`,
+    );
+  }
+};
+
+const getHuggingFaceToken = () =>
+  process.env.HF_TOKEN?.trim() || process.env.HUGGINGFACE_API_KEY?.trim();
+
+const getHuggingFaceImageModel = () => {
+  const model = process.env.HF_IMAGE_MODEL?.trim() || "Qwen/Qwen-Image";
+
+  return model.replace(/:(fastest|balanced|quality)$/i, "");
+};
+
+const assertHuggingFaceConfig = () => {
+  if (!getHuggingFaceToken()) {
+    throw new Error(
+      "HF_TOKEN is missing. Add your Hugging Face token to server/.env.",
+    );
+  }
+};
+
+const toPublicImageError = (error: any) => {
+  const message = getErrorMessage(error);
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("cloudinary") ||
+    normalized.includes("cloud_name") ||
+    normalized.includes("api_key") ||
+    normalized.includes("api_secret")
+  ) {
+    return "Cloudinary is not configured correctly. Add CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET to server/.env, then restart the server.";
+  }
+
+  if (normalized.includes("hf_token") || normalized.includes("hugging face")) {
+    return "Hugging Face is not configured. Add HF_TOKEN to server/.env, then restart the server.";
+  }
+
+  if (
+    normalized.includes("sufficient permissions") ||
+    normalized.includes("inference providers") ||
+    normalized.includes("authentication method")
+  ) {
+    return "Your Hugging Face token is valid, but it does not have Inference Providers permission. Create a new token with Inference Providers access, update HF_TOKEN in server/.env, then restart the server.";
+  }
+
+  if (
+    normalized.includes("quota") ||
+    normalized.includes("rate") ||
+    normalized.includes("credits") ||
+    normalized.includes("429")
+  ) {
+    return "Hugging Face image generation quota or rate limit was reached. Check your Inference Providers billing/quota and try again later.";
+  }
+
+  if (
+    normalized.includes("not found") ||
+    normalized.includes("unsupported") ||
+    normalized.includes("permission") ||
+    normalized.includes("403") ||
+    normalized.includes("404")
+  ) {
+    return "The Hugging Face image model/provider is not available for this token. Check HF_IMAGE_MODEL and your Inference Providers access.";
+  }
+
+  if (
+    normalized.includes("no image data") ||
+    normalized.includes("empty image")
+  ) {
+    return "Hugging Face returned no image data. Try a clearer visual prompt or switch HF_IMAGE_MODEL.";
+  }
+
+  return `Image generation failed: ${message}`;
+};
+
+const uploadImageBufferToCloudinary = async (buffer: Buffer): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: "ai-generations", resource_type: "image" },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
         }
 
-        throw new Error("Generation complete but no images found.");
-      }
+        if (!result?.secure_url) {
+          reject(new Error("Image upload failed - no secure URL returned"));
+          return;
+        }
 
-      if (generation.status === "FAILED") {
-        throw new Error("Leonardo.ai generation failed.");
-      }
-    } catch (err: any) {
-      console.error("Polling error:", err?.response?.data || err.message);
+        resolve(result.secure_url);
+      },
+    );
+
+    stream.end(buffer);
+  });
+
+const bufferToDataUrl = (buffer: Buffer, mimeType = "image/png") =>
+  `data:${mimeType};base64,${buffer.toString("base64")}`;
+
+const normalizeTopic = (prompt: string) =>
+  prompt
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[.]+$/g, "");
+
+const getHashtags = (prompt: string) => {
+  const words = normalizeTopic(prompt)
+    .split(/[^a-zA-Z0-9]+/)
+    .filter((word) => word.length > 3)
+    .slice(0, 4);
+  const uniqueTags = [...new Set(words.map((word) => `#${word}`))];
+
+  return [...uniqueTags, "#SocialMedia", "#ContentStrategy"].slice(0, 6);
+};
+
+const generateDraftContent = (prompt: string, tone?: string) => {
+  const topic = normalizeTopic(prompt);
+  const selectedTone = tone || "Professional";
+
+  const openings: Record<string, string> = {
+    Creative: `${topic} deserves more than a quick post. It deserves a moment people can feel.`,
+    Funny: `${topic} is proof that progress can be serious work without taking itself too seriously.`,
+    Minimalist: `${topic}. Clear focus. Strong intent. One next step.`,
+    Excited: `${topic} is live energy: momentum, clarity, and a reason to show up today.`,
+    Professional: `${topic} is a practical reminder that consistent execution builds visible momentum.`,
+  };
+
+  const body: Record<string, string> = {
+    Creative:
+      "Turn the idea into a visual story, keep the message simple, and give your audience one thing worth remembering.",
+    Funny:
+      "Show the human side, make the benefit obvious, and give people a reason to stop scrolling without forcing the punchline.",
+    Minimalist:
+      "Lead with the value. Remove the noise. Make the action obvious.",
+    Excited:
+      "Share the spark, highlight the transformation, and invite your audience into the next move.",
+    Professional:
+      "Use the moment to connect the problem, the value, and the next action in a way that feels clear and useful.",
+  };
+
+  const closing: Record<string, string> = {
+    Creative: "What would you make people feel first?",
+    Funny: "What are you making easier today?",
+    Minimalist: "What is the next move?",
+    Excited: "What are you building next?",
+    Professional: "What is the priority you want your audience to remember?",
+  };
+
+  return {
+    content: `${openings[selectedTone] || openings.Professional}\n\n${
+      body[selectedTone] || body.Professional
+    }\n\n${closing[selectedTone] || closing.Professional}\n\n${getHashtags(
+      topic,
+    ).join(" ")}`,
+    imagePrompt: `${topic}, ${selectedTone.toLowerCase()} social media campaign visual, editorial composition, realistic lighting, premium brand aesthetic, clean focal subject, no text, no watermark`,
+  };
+};
+
+const buildSocialImagePrompt = (imagePrompt: string, content: string) => `
+Create a polished, platform-ready social media visual for this post.
+Image direction: ${imagePrompt}
+Post copy context: ${content}
+
+Style requirements:
+- high-quality editorial marketing visual
+- clean composition with clear focal point
+- suitable for LinkedIn, Instagram, Facebook, and X
+- no watermarks, fake UI, or brand logos
+- avoid large embedded text unless the prompt specifically asks for it
+`;
+
+const imageResultToBuffer = async (image: unknown): Promise<Buffer> => {
+  if (typeof image === "string") {
+    if (image.startsWith("data:")) {
+      const base64 = image.split(",")[1];
+      if (!base64) throw new Error("Hugging Face returned empty image data");
+      return Buffer.from(base64, "base64");
     }
 
-    await new Promise((resolve) => setTimeout(resolve, delay));
+    const response = await fetch(image);
+    if (!response.ok) {
+      throw new Error(
+        `Failed to download Hugging Face image: ${response.status}`,
+      );
+    }
+
+    return Buffer.from(await response.arrayBuffer());
   }
 
-  throw new Error("Leonardo.ai generation timed out.");
+  if (
+    image &&
+    typeof image === "object" &&
+    "arrayBuffer" in image &&
+    typeof (image as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer ===
+      "function"
+  ) {
+    return Buffer.from(
+      await (image as { arrayBuffer: () => Promise<ArrayBuffer> }).arrayBuffer(),
+    );
+  }
+
+  throw new Error("Hugging Face returned no image data");
+};
+
+const generateHuggingFaceImage = async (
+  imagePrompt: string,
+  content: string,
+): Promise<string> => {
+  assertHuggingFaceConfig();
+
+  const client = new InferenceClient(getHuggingFaceToken());
+  const model = getHuggingFaceImageModel();
+  const provider = (process.env.HF_IMAGE_PROVIDER ||
+    "fal-ai") as InferenceProviderOrPolicy;
+  const steps = Number(process.env.HF_IMAGE_STEPS || 5);
+  const width = Number(process.env.HF_IMAGE_WIDTH || 1024);
+  const height = Number(process.env.HF_IMAGE_HEIGHT || 1024);
+  const request = {
+    provider,
+    model,
+    inputs: buildSocialImagePrompt(imagePrompt, content),
+    parameters: {
+      num_inference_steps: Number.isFinite(steps) ? steps : 5,
+      width: Number.isFinite(width) ? width : 1024,
+      height: Number.isFinite(height) ? height : 1024,
+      negative_prompt:
+        "low quality, blurry, distorted, watermark, logo, extra text, bad anatomy",
+    },
+  };
+
+  try {
+    const imageUrl = await client.textToImage(request, { outputType: "url" });
+
+    if (imageUrl) {
+      return imageUrl;
+    }
+  } catch (error) {
+    console.warn(
+      "Hugging Face URL output unavailable, falling back to blob:",
+      getErrorMessage(error),
+    );
+  }
+
+  const image = await client.textToImage(request);
+  const buffer = await imageResultToBuffer(image);
+
+  if (hasCloudinaryConfig()) {
+    return uploadImageBufferToCloudinary(buffer);
+  }
+
+  return bufferToDataUrl(buffer);
 };
 
 // Generate post
@@ -116,105 +310,31 @@ export const generatePost = async (
   try {
     const { prompt, tone, generateImage } = req.body;
 
-    const apiKey = process.env.GEMINI_API_KEY;
-
-    if (!apiKey) {
+    if (!prompt?.trim()) {
       res.status(400).json({
-        message:
-          "Gemini API Key is missing. Please add it to your server/.env file.",
+        message: "Prompt is required.",
       });
       return;
     }
 
-    const ai = new GoogleGenAI({ apiKey });
-
-    const aiPrompt = `Generate a social media post based on this prompt: "${prompt}".
-Tone: ${tone}.
-Include relevant hashtags.
-Format the response as JSON with "content" and "imagePrompt" fields.
-The "imagePrompt" should be a highly descriptive prompt for an image generator that complements the post.`;
-
-    let textResponse;
-
-    try {
-      textResponse = await generateContentWithRetry(ai, aiPrompt);
-    } catch (error: any) {
-      if (isTemporaryAiError(error)) {
-        res.status(503).json({
-          message:
-            "AI generation is busy right now. Please wait a moment and try again.",
-        });
-        return;
-      }
-
-      throw error;
-    }
-
-    let content = "";
-    let imagePrompt = prompt;
-
-    try {
-      const rawText = textResponse.text || "";
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      const data = jsonMatch
-        ? JSON.parse(jsonMatch[0])
-        : { content: rawText, imagePrompt: prompt };
-
-      content = data.content;
-      imagePrompt = data.imagePrompt;
-    } catch (e) {
-      content = textResponse.text || "";
-    }
+    const { content, imagePrompt } = generateDraftContent(prompt, tone);
 
     let mediaUrl = "";
+    let imageStatus: "skipped" | "generated" | "failed" = generateImage
+      ? "failed"
+      : "skipped";
+    let imageError: string | undefined;
 
     if (generateImage) {
       try {
-        const leonardoKey = process.env.LEONARDO_API_KEY;
-
-        if (leonardoKey) {
-          // Use Leonardo.ai for image generation
-          const leoResponse = await axios.post(
-            "https://cloud.leonardo.ai/api/rest/v2/generations",
-            {
-              public: false,
-              model: "gpt-image-2",
-              parameters: {
-                quality: "MEDIUM",
-                prompt: imagePrompt,
-                quantity: 1,
-                width: 1376,
-                height: 768,
-                prompt_enhance: "OFF",
-              },
-            },
-            {
-              headers: {
-                accept: "application/json",
-                authorization: `Bearer ${leonardoKey}`,
-                "content-type": "application/json",
-              },
-            },
-          );
-
-          const generationId =
-            leoResponse.data?.sdGenerationJob?.generationId ||
-            leoResponse.data?.generationId ||
-            leoResponse.data?.id;
-
-          if (generationId) {
-            const tempUrl = await pollLeonardoJob(generationId, leonardoKey);
-
-            // Upload to Cloudinary for persistence
-            const uploadResult = await cloudinary.uploader.upload(tempUrl, {
-              folder: "ai-generations",
-            });
-
-            mediaUrl = uploadResult.secure_url;
-          }
+        mediaUrl = await generateHuggingFaceImage(imagePrompt, content);
+        if (mediaUrl) {
+          imageStatus = "generated";
+          imageError = undefined;
         }
       } catch (err: any) {
-        console.error("Image generation failed:", err);
+        imageError = toPublicImageError(err);
+        console.error("Image generation failed:", getErrorMessage(err));
       }
     }
 
@@ -224,6 +344,8 @@ The "imagePrompt" should be a highly descriptive prompt for an image generator t
       content,
       mediaUrl,
       mediaType: mediaUrl ? "image" : undefined,
+      imageStatus,
+      imageError,
       tone,
     });
 

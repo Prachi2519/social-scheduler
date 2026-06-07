@@ -12,7 +12,13 @@ import { Toaster } from "react-hot-toast";
 export default function App() {
   return (
     <>
-      <Toaster position="top-right" />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          className: "app-toast",
+          duration: 3600,
+        }}
+      />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
