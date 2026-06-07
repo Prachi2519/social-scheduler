@@ -1,43 +1,39 @@
 import { Link } from "react-router-dom";
-import { ArrowRightIcon } from "lucide-react";
+import { ArrowRightIcon, CalendarClockIcon } from "lucide-react";
 
 export default function CTA() {
-    return (
-        <section className="py-20" style={{ background: "#ffffff" }}>
-            <div className="max-w-6xl mx-auto px-5 sm:px-8">
-                <div
-                    className="relative rounded-3xl overflow-hidden p-14 sm:p-20 text-center"
-                    style={{
-                        background: "linear-gradient(145deg, #fff5f5 0%, #fef2f2 100%)",
-                        border: "1.5px solid rgba(239,68,68,0.12)",
-                    }}
-                >
-                    {/* Glow blobs */}
-                    <div className="absolute top-0 right-0 w-96 h-96 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(239,68,68,0.1) 0%, transparent 70%)" }} />
-                    <div className="absolute bottom-0 left-0 w-72 h-72 rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(239,68,68,0.06) 0%, transparent 70%)" }} />
+  return (
+    <section className="bg-stone-950 py-20 text-white sm:py-24">
+      <div className="mx-auto grid max-w-7xl gap-8 px-4 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-end lg:px-8">
+        <div className="max-w-3xl">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold uppercase text-white/65">
+            <CalendarClockIcon className="size-3.5 text-[#ffd36e]" />
+            Ready queue
+          </div>
+          <h2 className="text-4xl font-semibold leading-tight sm:text-5xl">
+            Build a calmer social calendar this week.
+          </h2>
+          <p className="mt-5 max-w-2xl text-base leading-7 text-white/65">
+            Open the workspace, connect your channels, and schedule the posts
+            your audience should see next.
+          </p>
+        </div>
 
-                    <div className="relative">
-                        <div className="mb-6 inline-flex items-center gap-1.5 bg-red-500/10 border border-red-500/15 text-red-500 text-[11px] font-medium tracking-[0.06em] uppercase px-3.5 py-1.5 rounded-full">Ready to grow?</div>
-                        <h2 className="font-serif text-4xl sm:text-5xl md:text-6xl leading-tight font-medium text-gray-900">
-                            Automate your social
-                            <br />
-                            <span className="text-red-400 italic">media today</span>
-                        </h2>
-                        <p className="mt-6 text-gray-500 max-w-lg mx-auto  text-lg">Join thousands of creators and marketers who trust Scheduler to grow their audience on autopilot.</p>
-
-                        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-                            <Link to="/login" className="bg-red-500 text-white rounded-full font-semibold hover:bg-red-600 hover:shadow-[0_8px_24px_rgba(239,68,68,0.35)] inline-flex items-center gap-2 text-[15px] px-10 py-4 w-full sm:w-auto justify-center">
-                                Get Started Free <ArrowRightIcon className="size-4" />
-                            </Link>
-                            <a href="#pricing" className="bg-transparent text-[#333] border-[1.5px] border-black/10 rounded-full font-medium hover:bg-black/5 hover:border-black/20 inline-flex items-center gap-2 text-[15px] px-10 py-4 w-full sm:w-auto justify-center">
-                                View Pricing
-                            </a>
-                        </div>
-
-                        <p className="mt-6 text-xs text-gray-400">No credit card required · Cancel anytime</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-    );
+        <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+          <Link
+            to="/login"
+            className="focus-ring inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[var(--coral)] px-6 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(239,93,79,0.24)] transition hover:-translate-y-0.5 hover:bg-[var(--coral-dark)]"
+          >
+            Start free <ArrowRightIcon className="size-4" />
+          </Link>
+          <a
+            href="#pricing"
+            className="focus-ring inline-flex h-12 items-center justify-center rounded-lg border border-white/15 bg-white/10 px-6 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-white/15"
+          >
+            Compare plans
+          </a>
+        </div>
+      </div>
+    </section>
+  );
 }

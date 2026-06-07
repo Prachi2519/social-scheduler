@@ -7,6 +7,12 @@ const generationSchema = new mongoose.Schema(
     content: { type: String, required: true },
     mediaUrl: { type: String },
     mediaType: { type: String, enum: ["image", "video"] },
+    imageStatus: {
+      type: String,
+      enum: ["skipped", "generated", "failed"],
+      default: "skipped",
+    },
+    imageError: { type: String },
     tone: { type: String },
   },
   { timestamps: true },

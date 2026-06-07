@@ -23,12 +23,12 @@ export const protect = async (
 
       req.user = await User.findById(decoded.id).select("-password");
       next();
-    } catch (error: any) {
-      res
-        .status(401)
-        .json({ message: error?.message || "Not authorized, token failed" });
+    } catch {
+      res.status(401).json({
+        message: "Your session expired. Please sign in again.",
+      });
     }
   } else {
-    res.status(401).json({ message: "Not authorized, no token" });
+    res.status(401).json({ message: "Please sign in to continue." });
   }
 };

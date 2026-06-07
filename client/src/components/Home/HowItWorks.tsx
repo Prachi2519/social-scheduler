@@ -1,45 +1,80 @@
-import { ArrowRightIcon, CheckCircleIcon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  CalendarCheckIcon,
+  CheckCircleIcon,
+  PlugZapIcon,
+  WandSparklesIcon,
+} from "lucide-react";
 
 const steps = [
-    { step: "01", title: "Connect Your Accounts", description: "Link your social profiles in seconds. We support Twitter, LinkedIn, Facebook, and Instagram." },
-    { step: "02", title: "Create or Generate Content", description: "Write your own post or let our AI craft a caption and image based on your prompt." },
-    { step: "03", title: "Schedule & Publish", description: "Pick a time, select your platforms, and hit schedule. We handle publishing automatically." },
+  {
+    description:
+      "Authorize each profile once and keep channel health visible on the Accounts screen.",
+    icon: PlugZapIcon,
+    step: "01",
+    title: "Connect channels",
+  },
+  {
+    description:
+      "Write manually or ask AI for caption ideas, image direction, and hashtags.",
+    icon: WandSparklesIcon,
+    step: "02",
+    title: "Create content",
+  },
+  {
+    description:
+      "Choose the channels, confirm media rules, and place the post into the queue.",
+    icon: CalendarCheckIcon,
+    step: "03",
+    title: "Schedule confidently",
+  },
 ];
 
 export default function HowItWorks() {
-    return (
-        <section id="how-it-works" className="py-24 bg-white">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6">
-                <div className="text-center mb-16">
-                    <div className="mb-6 inline-flex items-center gap-1.5 bg-red-500/10 border border-red-500/15 text-red-500 text-[11px] font-medium tracking-[0.06em] uppercase px-3.5 py-1.5 rounded-full">
-                        <CheckCircleIcon className="size-3" />
-                        Simple setup
-                    </div>
-                    <h2 className="font-serif font-medium text-4xl sm:text-5xl leading-tight text-gray-900">
-                        Up and running in <span className="text-red-400 italic">minutes</span>
-                    </h2>
-                    <p className="mt-5 text-gray-500 max-w-lg mx-auto leading-relaxed">No complicated onboarding, no steep learning curve. Just connect, create, and grow.</p>
-                </div>
-
-                <div className="space-y-6">
-                    {steps.map((s, i) => (
-                        <div key={s.step} className="flex gap-6 items-start">
-                            <div className="shrink-0 size-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center">
-                                <span className="text-sm font-medium text-red-500">{s.step}</span>
-                            </div>
-                            <div className="pt-1">
-                                <h3 className=" text-slate-900 mb-1">{s.title}</h3>
-                                <p className="text-slate-500 text-sm leading-relaxed">{s.description}</p>
-                            </div>
-                            {i < steps.length - 1 && (
-                                <div className="hidden sm:block ml-auto shrink-0 self-center">
-                                    <ArrowRightIcon className="size-4 text-slate-200" />
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
+  return (
+    <section id="how-it-works" className="bg-[var(--paper-warm)] py-20 sm:py-24">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="grid gap-10 lg:grid-cols-[0.72fr_1fr] lg:items-start">
+          <div>
+            <div className="mb-5 inline-flex items-center gap-2 rounded-lg border border-stone-300/70 bg-white/55 px-3 py-2 text-xs font-semibold uppercase text-stone-500">
+              <CheckCircleIcon className="size-3.5 text-[var(--mint)]" />
+              Workflow
             </div>
-        </section>
-    );
+            <h2 className="text-4xl font-semibold leading-tight text-stone-950 sm:text-5xl">
+              One clean loop from connection to calendar.
+            </h2>
+          </div>
+
+          <div className="grid gap-3">
+            {steps.map((step, index) => (
+              <article
+                key={step.step}
+                className="grid gap-4 rounded-lg border border-stone-300/70 bg-white/65 p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center"
+              >
+                <div className="surface-inverse flex size-12 items-center justify-center rounded-lg">
+                  <step.icon className="size-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-stone-400">
+                    {step.step}
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold text-stone-950">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">
+                    {step.description}
+                  </p>
+                </div>
+                {index < steps.length - 1 ? (
+                  <ArrowRightIcon className="hidden size-5 text-stone-300 sm:block" />
+                ) : (
+                  <CheckCircleIcon className="hidden size-5 text-[var(--mint)] sm:block" />
+                )}
+              </article>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }

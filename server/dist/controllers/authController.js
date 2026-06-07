@@ -10,7 +10,12 @@ const generateToken = (id) => {
 // POST /api/auth/register
 export const registerUser = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const { name, password } = req.body;
+        const email = String(req.body.email || "").trim().toLowerCase();
+        if (!name || !email || !password) {
+            res.status(400).json({ message: "Name, email, and password are required" });
+            return;
+        }
         const userExists = await User.findOne({ email });
         if (userExists) {
             res.status(400).json({ message: "User already exists" });
@@ -26,7 +31,12 @@ export const registerUser = async (req, res) => {
         if (user) {
             res
                 .status(201)
-                .json({ _id: user._id, name: user.name, email: user.email });
+                .json({
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                token: generateToken(user._id.toString()),
+            });
         }
         else {
             res.status(400).json({ message: "Invalid user data" });
@@ -40,7 +50,12 @@ export const registerUser = async (req, res) => {
 // POST /api/auth/login
 export const loginUser = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const email = String(req.body.email || "").trim().toLowerCase();
+        const { password } = req.body;
+        if (!email || !password) {
+            res.status(400).json({ message: "Email and password are required" });
+            return;
+        }
         const user = await User.findOne({ email });
         if (user && (await bcrypt.compare(password, user.password))) {
             res.json({
@@ -51,7 +66,7 @@ export const loginUser = async (req, res) => {
             });
         }
         else {
-            res.status(401).json({});
+            res.status(401).json({ message: "Invalid email or password" });
         }
     }
     catch (error) {
